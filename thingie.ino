@@ -3,8 +3,6 @@
  * Hilal Koyuncu & Michael D'Auria
  */
 
-const boolean commonAnode = false;
-
 const byte btnSilence  = 2; // INT0 & SILENCE button
 const byte btnPresence = 3; // INT1 & PRESENCE button
 
@@ -30,11 +28,11 @@ void setup()  {
 
   pinMode(btnPresence, INPUT);
   digitalWrite(btnPresence, HIGH);
-  attachInterrupt(0, togglePresence, FALLING);
+  attachInterrupt(0, togglePresence, LOW);
 
   pinMode(btnSilence, INPUT);
   digitalWrite(btnSilence, HIGH);
-  attachInterrupt(1, toggleQuiet, FALLING);
+  attachInterrupt(1, toggleQuiet, LOW);
 
   setAway();
   Serial.begin(9600);
@@ -62,12 +60,6 @@ void loop() {
 }
 
 void setColor(byte red, byte green, byte blue) {
-  if (commonAnode) {
-    red   = 255-red;
-    green = 255-green;
-    blue  = 255-blue;
-  }
-
   red   = constrain(red,   0, 255);
   green = constrain(green, 0, 255);
   blue  = constrain(blue,  0, 255);
