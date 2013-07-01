@@ -3,23 +3,31 @@
  * Hilal Koyuncu & Michael D'Auria
  */
 
+#include <NewPing.h>
+
 const byte btnSilence  = 2; // INT0 & SILENCE button
 const byte btnPresence = 3; // INT1 & PRESENCE button
 
-const byte ledBlue  =  9; // BLUE
-const byte ledGreen = 10; // GREEN
-const byte ledRed   = 11; // RED
+const byte senTrigger  = 12;  // US Trigger
+const byte senEcho     = 6;   // US Echo
+const byte maxDistance = 100; // US Maximum detection distance
 
-static byte present = false;
-static byte quiet   = false;
+const byte ledBlue  =  9;
+const byte ledGreen = 10;
+const byte ledRed   = 11;
 
-static byte prevPresent = false;
-static byte prevQuiet   = false;
+static volatile byte present = false;
+static volatile byte quiet   = false;
+
+static volatile byte prevPresent = false;
+static volatile byte prevQuiet   = false;
 
 const unsigned int quietTime = 10*1000; // s
-static unsigned long quietTimer = 0;
+static volatile unsigned long quietTimer = 0;
 
 const byte debounce = 1200; // ms
+
+NewPing sonar(senTrigger, senEcho, maxDistance);
 
 void setup()  {
   pinMode(ledRed,   OUTPUT);
@@ -28,14 +36,17 @@ void setup()  {
 
   pinMode(btnPresence, INPUT);
   digitalWrite(btnPresence, HIGH);
-  attachInterrupt(0, togglePresence, LOW);
+  attachInterrupt(0, presenceDetected, LOW);
 
   pinMode(btnSilence, INPUT);
   digitalWrite(btnSilence, HIGH);
-  attachInterrupt(1, toggleQuiet, LOW);
+  attachInterrupt(1, quietDetected, LOW);
+
+  pinMode(13, INPUT);
+  digitalWrite(13, HIGH);
 
   setAway();
-  Serial.begin(9600);
+  Serial.begin(115200);
 }
 
 void loop() {
@@ -49,14 +60,20 @@ void loop() {
     } else {
       setAway();
     }
-
-    prevPresent = present;
-    prevQuiet = quiet;
   }
+
+  prevPresent = present;
+  prevQuiet = quiet;
+
+  unsigned int sonarDistance = sonar.ping()/US_ROUNDTRIP_CM;
+  //Serial.println(sonarDistance);  
+  present = (sonarDistance > 0);
 
   if (quietTimer > 0 && millis() > quietTimer) {
-    toggleQuiet();
+    setPresent();
   }
+
+  delay(500);
 }
 
 void setColor(byte red, byte green, byte blue) {
@@ -73,6 +90,7 @@ void setAway() {
   Serial.println("away");
   setColor(25, 0, 0);
   present = false;
+  quiet = false;
 }
 
 void setPresent() {
@@ -80,6 +98,7 @@ void setPresent() {
   setColor(0, 25, 0);
   present = true;
   quiet = false;
+  quietTimer = 0;
 }
 
 void setQuiet() {
@@ -88,28 +107,24 @@ void setQuiet() {
   quiet = true;
 }
 
-void togglePresence() {
+void presenceDetected() {
   static unsigned long lastInterruptTime0 = 0;
   unsigned long interruptTime0 = millis();
 
   if (interruptTime0 - lastInterruptTime0 > debounce) {
-    if (quiet) {
-      toggleQuiet();
-    }
-
-    present = !present;
+    setPresent();
   }
 
   lastInterruptTime0 = interruptTime0;
 }
 
-void toggleQuiet() {
+void quietDetected() {
   static unsigned long lastInterruptTime1 = 0;
   unsigned long interruptTime1 = millis();
 
-  if (interruptTime1 - lastInterruptTime1 > debounce) {
-    quiet = !quiet;
-    quietTimer = (quiet) ? (interruptTime1 + quietTime) : 0;
+  if (present && interruptTime1 - lastInterruptTime1 > debounce) {
+    setQuiet();
+    quietTimer = interruptTime1 + quietTime;
   }
 
   lastInterruptTime1 = interruptTime1;
